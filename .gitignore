@@ -1,7 +1,11 @@
 #Excluded files
 
 *.csv
-*.txt 
+*.txt
+
+#Except these files
+
+!requirements.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
