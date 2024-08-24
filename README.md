@@ -26,4 +26,6 @@ The all project was coded under PEP-8 (https://peps.python.org/pep-0008/) and fl
 
 ![alt text](https://github.com/HippolyteGuigon/Supply_planning_optimization_problem/blob/main/ressources/logo.webp)
 
+Supply chain overview
+
 ## How to use ?
