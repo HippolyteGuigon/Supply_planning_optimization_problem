@@ -1,0 +1,4 @@
+name: supply_planning_optimization_envirnment
+channels:
+  - defaults
+prefix: /Users/hippolyteguigon/mambaforge/envs/supply_planning_optimization_envirnment
