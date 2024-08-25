@@ -127,7 +127,7 @@ class SimplexSolver(Solver, Preprocessing):
         """
 
         self.Inbound = pulp.LpVariable.dicts(
-            "I",
+            "Inbound",
             [(i + 1, j + 1) for i in range(2) for j in range(2)],
             lowBound=0,
             upBound=None,
@@ -135,7 +135,7 @@ class SimplexSolver(Solver, Preprocessing):
         )
 
         self.Outbound = pulp.LpVariable.dicts(
-            "O",
+            "Outbound",
             [(i + 1, j + 1) for i in range(2) for j in range(200)],
             lowBound=0,
             upBound=None,
@@ -156,7 +156,7 @@ class SimplexSolver(Solver, Preprocessing):
 
         self.solver += pulp.lpSum(
             [
-                self.outprice_data.iloc[i, j + 1] * self.Inbound[i + 1, j + 1]
+                self.inprice_data.iloc[i, j + 1] * self.Inbound[i + 1, j + 1]
                 for i in range(2)
                 for j in range(2)
             ]
@@ -187,7 +187,7 @@ class SimplexSolver(Solver, Preprocessing):
         for p in range(2):
             self.solver += pulp.lpSum(
                 [self.Inbound[i + 1, p + 1] for i in range(2)]
-            ) == pulp.lpSum([self.O[p + 1, j + 1] for j in range(200)])
+            ) == pulp.lpSum([self.Outbound[p + 1, j + 1] for j in range(200)])
 
     def solve(self) -> None:
         """
