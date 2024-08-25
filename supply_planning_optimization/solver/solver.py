@@ -14,6 +14,20 @@ class Solver(ABC):
     """
 
     @abstractmethod
+    def decision_variable_definition(self) -> None:
+        """
+        The goal of this method is to implement an
+        abstract method for defining decision variables
+        in the optimization process
+
+        Arguments:
+            -None
+        Returns:
+            -None
+        """
+        pass
+
+    @abstractmethod
     def implement_constraints(self) -> None:
         """
         The goal of this method is to implement
