@@ -14,6 +14,20 @@ class Solver(ABC):
     """
 
     @abstractmethod
+    def implement_constraints(self) -> None:
+        """
+        The goal of this method is to implement
+        an abstract method for constraint implementation
+        in the optimization process
+
+        Arguments:
+            -None
+        Returns:
+            -None
+        """
+        pass
+
+    @abstractmethod
     def solve(self) -> None:
         """
         The goal of this method is to have an abstract
