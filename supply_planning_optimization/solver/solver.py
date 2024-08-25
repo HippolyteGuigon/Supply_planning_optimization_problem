@@ -1,3 +1,4 @@
+import pulp
 from abc import ABC, abstractmethod
 
 
@@ -53,3 +54,26 @@ class Solver(ABC):
             -None
         """
         pass
+
+
+class SimplexSolver(Solver):
+    """
+    The goal of this class is to implement
+    a Simplex solver method
+
+    Arguments:
+        -None
+    Returns:
+        -None
+    """
+
+    def __init__(self) -> None:
+        """
+        Initializes the Simplex solver with a specific linear programming problem.
+
+        Arguments:
+            -None
+        Returns:
+            -None
+        """
+        self.solver = pulp.LpProblem("Transhipment_Problem", pulp.LpMinimize)
