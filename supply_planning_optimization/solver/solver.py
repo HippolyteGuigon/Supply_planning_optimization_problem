@@ -111,10 +111,6 @@ class GeneticAlgorithmSolver(Solver, Preprocessing):
         self.best_inbound = None
         self.best_outbound = None
 
-        self.decision_variable_definition()
-        self.define_objective_function()
-        self.implement_constraints()
-
     def decision_variable_definition(self) -> None:
         """
         The goal of this method is to define the
