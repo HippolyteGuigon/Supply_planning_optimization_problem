@@ -3,9 +3,10 @@ import numpy as np
 import random
 import warnings
 
-from deap import base, creator, tools
-from typing import Tuple
 from abc import ABC, abstractmethod
+from typing import Tuple
+from deap import base, creator, tools
+from gurobipy import Model, GRB
 from supply_planning_optimization.preprocessing.preprocessing import Preprocessing
 
 warnings.filterwarnings("ignore")
@@ -98,9 +99,13 @@ class GeneticAlgorithmSolver(Solver, Preprocessing):
         Initializes the Genetic Algorithm solver with preprocessed data.
         """
         Preprocessing.__init__(self)
-        self.inprice_data, self.outprice_data, self.demand_data = super().preprocess()
-        self.inprice_data = self.inprice_data.iloc[:, 1:]
-        self.outprice_data = self.outprice_data.iloc[:, 1:]
+        (
+            self.Inboundnprice_data,
+            self.Outboundutprice_data,
+            self.demand_data,
+        ) = super().preprocess()
+        self.Inboundnprice_data = self.Inboundnprice_data.iloc[:, 1:]
+        self.Outboundutprice_data = self.Outboundutprice_data.iloc[:, 1:]
         self.demand_data = self.demand_data.iloc[:, 1:]
 
         self.num_plants = 2
@@ -162,8 +167,8 @@ class GeneticAlgorithmSolver(Solver, Preprocessing):
                 (self.num_platforms, self.num_customers)
             )
 
-            total_cost = np.sum(inbound * self.inprice_data.values) + np.sum(
-                outbound * self.outprice_data.values
+            total_cost = np.sum(inbound * self.Inboundnprice_data.values) + np.sum(
+                outbound * self.Outboundutprice_data.values
             )
 
             penalty = 0
@@ -284,7 +289,11 @@ class SimplexSolver(Solver, Preprocessing):
 
         Preprocessing.__init__(self)
 
-        self.inprice_data, self.outprice_data, self.demand_data = super().preprocess()
+        (
+            self.Inboundnprice_data,
+            self.Outboundutprice_data,
+            self.demand_data,
+        ) = super().preprocess()
         self.solver = pulp.LpProblem("Transhipment_Problem", pulp.LpMinimize)
 
     def decision_variable_definition(self) -> None:
@@ -299,7 +308,7 @@ class SimplexSolver(Solver, Preprocessing):
             -None
         """
 
-        self.Inbound = pulp.LpVariable.dicts(
+        self.Inboundnbound = pulp.LpVariable.dicts(
             "Inbound",
             [(i + 1, j + 1) for i in range(2) for j in range(2)],
             lowBound=0,
@@ -307,7 +316,7 @@ class SimplexSolver(Solver, Preprocessing):
             cat="Integer",
         )
 
-        self.Outbound = pulp.LpVariable.dicts(
+        self.Outboundutbound = pulp.LpVariable.dicts(
             "Outbound",
             [(i + 1, j + 1) for i in range(2) for j in range(200)],
             lowBound=0,
@@ -329,13 +338,15 @@ class SimplexSolver(Solver, Preprocessing):
 
         self.solver += pulp.lpSum(
             [
-                self.inprice_data.iloc[i, j + 1] * self.Inbound[i + 1, j + 1]
+                self.Inboundnprice_data.iloc[i, j + 1]
+                * self.Inboundnbound[i + 1, j + 1]
                 for i in range(2)
                 for j in range(2)
             ]
         ) + pulp.lpSum(
             [
-                self.outprice_data.iloc[i, j + 1] * self.Outbound[i + 1, j + 1]
+                self.Outboundutprice_data.iloc[i, j + 1]
+                * self.Outboundutbound[i + 1, j + 1]
                 for i in range(2)
                 for j in range(200)
             ]
@@ -354,13 +365,13 @@ class SimplexSolver(Solver, Preprocessing):
 
         for j in range(200):
             self.solver += (
-                pulp.lpSum([self.Outbound[i + 1, j + 1] for i in range(2)])
+                pulp.lpSum([self.Outboundutbound[i + 1, j + 1] for i in range(2)])
                 >= self.demand_data.loc[j, "DEMAND"]
             )
         for p in range(2):
             self.solver += pulp.lpSum(
-                [self.Inbound[i + 1, p + 1] for i in range(2)]
-            ) == pulp.lpSum([self.Outbound[p + 1, j + 1] for j in range(200)])
+                [self.Inboundnbound[i + 1, p + 1] for i in range(2)]
+            ) == pulp.lpSum([self.Outboundutbound[p + 1, j + 1] for j in range(200)])
 
     def solve(self) -> None:
         """
@@ -390,13 +401,139 @@ class SimplexSolver(Solver, Preprocessing):
         """
 
         inbound = np.array(
-            [[self.Inbound[i + 1, j + 1].varValue for j in range(2)] for i in range(2)]
-        )
-        outbound = np.array(
             [
-                [self.Outbound[i + 1, j + 1].varValue for j in range(200)]
+                [self.Inboundnbound[i + 1, j + 1].varValue for j in range(2)]
                 for i in range(2)
             ]
         )
+        outbound = np.array(
+            [
+                [self.Outboundutbound[i + 1, j + 1].varValue for j in range(200)]
+                for i in range(2)
+            ]
+        )
+
+        return inbound, outbound
+
+
+class CuttingPlaneSolver(Solver, Preprocessing):
+    def __init__(self) -> None:
+        """
+        Initializes the Cutting Plane Algorithm solver with preprocessed data.
+        """
+        Preprocessing.__init__(self)
+
+        (
+            self.Inboundnprice_data,
+            self.Outboundutprice_data,
+            self.demand_data,
+        ) = super().preprocess()
+
+        self.model = Model("Supply_chain_cutting_plane_solver")
+        self.model.Params.OutputFlag = 0
+
+    def decision_variable_definition(self) -> None:
+        """
+        The goal of this method is to define the
+        decision variables for the optimization
+        process
+
+        Arguments:
+            -None
+        Returns:
+            -None
+        """
+
+        self.Inbound = self.model.addVars(2, 2, vtype=GRB.INTEGER, name="I")
+        self.Outbound = self.model.addVars(2, 200, vtype=GRB.INTEGER, name="O")
+
+    def define_objective_function(self) -> None:
+        """
+        The goal of this method is to  define
+        the objective function in the optimization
+        process
+
+        Arguments:
+            -None
+        Returns:
+            -None
+        """
+
+        self.model.setObjective(
+            sum(
+                [
+                    self.Inboundnprice_data.iloc[i, j + 1] * self.Inbound[i, j]
+                    for i in range(2)
+                    for j in range(2)
+                ]
+            )
+            + sum(
+                self.Outboundutprice_data.iloc[i, j + 1] * self.Outbound[i, j]
+                for i in range(2)
+                for j in range(200)
+            ),
+            GRB.MINIMIZE,
+        )
+
+    def implement_constraints(self) -> None:
+        """
+        The goal of this method is to implement
+        constraints for the optimization process
+
+        Arguments:
+            -None
+        Returns:
+            -None
+        """
+
+        for i in range(200):
+            self.model.addConstr(
+                self.Outbound[0, i] + self.Outbound[1, i]
+                >= self.demand_data.loc[i, "DEMAND"]
+            )
+            for j in range(2):
+                self.model.addConstr(self.Outbound[j, i] >= 0)
+
+        for p in range(2):
+            self.model.addConstr(
+                sum([self.Inbound[i, p] for i in range(2)])
+                == sum([self.Outbound[p, j] for j in range(200)])
+            )
+            for k in range(2):
+                self.model.addConstr(self.Inbound[p, k] >= 0)
+
+    def solve(self) -> None:
+        """
+        The goal of this method is to launch
+        the solver optimization
+
+        Arguments:
+            -None
+        Returns
+            -None
+        """
+
+        self.model.optimize()
+
+    def get_results(self) -> Tuple[np.array]:
+        """
+        The goal of this method is to get
+        the optimization results once computed
+
+        Arguments:
+            -None
+        Returns
+            -inbound: np.array: The optimal inbound
+            matrix
+            -outbound: np.array: The optimal outbound
+            matrix
+        """
+
+        inbound = np.array([[self.Inbound[i, j].X for j in range(2)] for i in range(2)])
+        outbound = np.array(
+            [[self.Outbound[i, j].X for j in range(200)] for i in range(2)]
+        )
+
+        inbound, outbound = np.int32(inbound), np.int32(outbound)
 
         return inbound, outbound
